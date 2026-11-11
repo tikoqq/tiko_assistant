@@ -1,0 +1,157 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f5f7fb">
+    <meta name="description" content="AI Personal Assistant — управление личными задачами">
+    <title>AI Personal Assistant</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+
+    <main class="app-container">
+
+        <!-- Шапка приложения -->
+        <header class="header">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-2-5.8L4 11l6-2.2L12 3z"/>
+                        <path d="M19 14l1 2.5 2.5 1-2.5 1L19 21l-1-2.5-2.5-1 2.5-1L19 14z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>AI Personal Assistant</h1>
+                    <p class="brand-subtitle">Твой личный центр продуктивности</p>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <span class="status-dot"></span>
+                Локальный режим
+            </div>
+        </header>
+
+        <!-- Приветствие -->
+        <section class="welcome-section">
+            <div>
+                <span class="eyebrow">ПРОСТРАНСТВО ПРОДУКТИВНОСТИ</span>
+                <h2>Управляй своими задачами.</h2>
+                <p>Планируй дела, отслеживай прогресс и достигай целей.</p>
+            </div>
+            <div class="welcome-decoration" aria-hidden="true">
+                <div class="decoration-circle circle-one"></div>
+                <div class="decoration-circle circle-two"></div>
+                <span>✦</span>
+            </div>
+        </section>
+
+        <!-- Статистика -->
+        <section class="stats-grid" aria-label="Статистика задач">
+            <article class="stat-card">
+                <div class="stat-top">
+                    <span class="stat-label">Всего задач</span>
+                    <span class="stat-icon total-icon">▤</span>
+                </div>
+                <div class="stat-number" id="totalCount">0</div>
+                <p class="stat-description">Все твои задачи</p>
+            </article>
+
+            <article class="stat-card">
+                <div class="stat-top">
+                    <span class="stat-label">Выполнено</span>
+                    <span class="stat-icon completed-icon">✓</span>
+                </div>
+                <div class="stat-number" id="completedCount">0</div>
+                <p class="stat-description">Уже сделано</p>
+            </article>
+
+            <article class="stat-card">
+                <div class="stat-top">
+                    <span class="stat-label">Осталось</span>
+                    <span class="stat-icon active-icon">◷</span>
+                </div>
+                <div class="stat-number" id="activeCount">0</div>
+                <p class="stat-description">В планах</p>
+            </article>
+        </section>
+
+        <!-- Основной блок задач -->
+        <section class="tasks-section">
+
+            <div class="section-heading">
+                <div>
+                    <h2>Мои задачи</h2>
+                    <p>Маленькие шаги приводят к большим результатам.</p>
+                </div>
+            </div>
+
+            <!-- Форма добавления -->
+            <form class="task-form" id="taskForm">
+                <label class="visually-hidden" for="taskInput">
+                    Название новой задачи
+                </label>
+
+                <div class="input-wrapper">
+                    <span class="input-plus" aria-hidden="true">+</span>
+                    <input
+                        type="text"
+                        id="taskInput"
+                        placeholder="Какое дело нужно выполнить?"
+                        maxlength="200"
+                        autocomplete="off"
+                        required
+                    >
+                </div>
+
+                <button type="submit" class="add-button">
+                    <span>Добавить задачу</span>
+                    <span class="button-plus">+</span>
+                </button>
+            </form>
+
+            <!-- Фильтры -->
+            <div class="filter-row">
+                <div class="filter-group" role="group" aria-label="Фильтр задач">
+                    <button class="filter-button active"
+                            type="button" data-filter="all"
+                            aria-pressed="true">
+                        Все
+                    </button>
+                    <button class="filter-button"
+                            type="button" data-filter="active"
+                            aria-pressed="false">
+                        Активные
+                    </button>
+                    <button class="filter-button"
+                            type="button" data-filter="completed"
+                            aria-pressed="false">
+                        Выполненные
+                    </button>
+                </div>
+
+                <span class="task-counter" id="visibleCount">
+                    0 задач
+                </span>
+            </div>
+
+            <!-- Список задач -->
+            <div class="task-list" id="taskList" aria-live="polite">
+            </div>
+
+        </section>
+
+        <!-- Подвал -->
+        <footer class="footer">
+            <span>AI Personal Assistant</span>
+            <span>Твои задачи. Твой порядок. Твой прогресс.</span>
+        </footer>
+
+    </main>
+
+</body>
+</html>
