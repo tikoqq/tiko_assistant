@@ -36,8 +36,13 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+body.modal-open {
+    overflow: hidden;
+}
+
 button,
-input {
+input,
+textarea {
     font: inherit;
 }
 
@@ -447,6 +452,7 @@ button {
         opacity: 0;
         transform: translateY(5px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -526,6 +532,46 @@ button {
 }
 
 /* =========================================
+   Кнопка разбора задачи
+========================================= */
+
+.ai-task-button {
+    min-height: 34px;
+    padding: 0 11px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid #e0ddff;
+    border-radius: 9px;
+    background: var(--primary-light);
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 650;
+    transition: all 0.2s;
+}
+
+.ai-task-button:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.ai-task-button.has-plan {
+    background: var(--success-light);
+    border-color: #c9eedf;
+    color: var(--success);
+}
+
+.ai-task-button.has-plan:hover {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+}
+
+/* =========================================
    Пустой список
 ========================================= */
 
@@ -577,6 +623,333 @@ button {
 }
 
 /* =========================================
+   МОДАЛЬНОЕ ОКНО ИИ
+========================================= */
+
+.ai-modal[hidden] {
+    display: none !important;
+}
+
+.ai-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.ai-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(25, 27, 49, 0.62);
+    backdrop-filter: blur(5px);
+    animation: fadeIn 0.2s ease;
+}
+
+.ai-modal-content {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 690px);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding: 27px;
+    background: white;
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 21px;
+    box-shadow: 0 20px 70px rgba(20, 24, 55, 0.22);
+    animation: modalAppear 0.22s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.ai-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 15px;
+    margin-bottom: 22px;
+}
+
+.ai-eyebrow {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--primary);
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: 1.8px;
+}
+
+.ai-modal-header h2 {
+    font-size: 23px;
+    letter-spacing: -0.6px;
+}
+
+.ai-modal-header p {
+    margin-top: 7px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.modal-close {
+    width: 35px;
+    height: 35px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 10px;
+    background: #f1f2f7;
+    color: #74788a;
+    font-size: 23px;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--danger-light);
+    color: var(--danger);
+}
+
+.selected-task-box {
+    padding: 15px 17px;
+    background: var(--primary-light);
+    border: 1px solid #e4e0ff;
+    border-radius: 12px;
+    margin-bottom: 23px;
+}
+
+.selected-task-label {
+    color: var(--primary);
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: 1.4px;
+}
+
+.selected-task-box p {
+    margin-top: 7px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.ai-block {
+    min-width: 0;
+}
+
+.ai-block-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.ai-block-heading h3 {
+    font-size: 15px;
+}
+
+.ai-step {
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: #f0efff;
+    color: var(--primary);
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: 0.7px;
+}
+
+.ai-help-text {
+    margin: 8px 0 12px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+.ai-textarea {
+    display: block;
+    width: 100%;
+    resize: vertical;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    outline: none;
+    background: #fafbfe;
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.7;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ai-textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 91, 219, 0.09);
+}
+
+.ai-textarea::placeholder {
+    color: #a6a9b7;
+}
+
+.prompt-textarea {
+    min-height: 165px;
+}
+
+.answer-textarea {
+    min-height: 180px;
+}
+
+.ai-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 12px;
+}
+
+.primary-button,
+.secondary-button,
+.save-plan-button,
+.cancel-button,
+.delete-plan-button {
+    min-height: 42px;
+    padding: 0 15px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 650;
+    transition: all 0.2s;
+}
+
+.primary-button {
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: white;
+}
+
+.primary-button:hover {
+    background: var(--primary-dark);
+}
+
+.secondary-button {
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+}
+
+.secondary-button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.copy-hint {
+    min-height: 16px;
+    margin-top: 8px;
+    color: var(--success);
+    font-size: 11px;
+}
+
+.ai-divider {
+    height: 1px;
+    margin: 17px 0 21px;
+    background: var(--border);
+}
+
+.answer-hint {
+    margin-top: 8px;
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.saved-plan-indicator {
+    margin-top: 11px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: var(--success-light);
+    color: var(--success);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.saved-plan-indicator span {
+    margin-right: 5px;
+    font-weight: 800;
+}
+
+.ai-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 21px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+}
+
+.modal-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-left: auto;
+}
+
+.cancel-button {
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text-secondary);
+}
+
+.cancel-button:hover {
+    background: #f4f5f9;
+}
+
+.save-plan-button {
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: white;
+}
+
+.save-plan-button:hover {
+    background: var(--primary-dark);
+}
+
+.delete-plan-button {
+    border: 1px solid #ffdce0;
+    background: var(--danger-light);
+    color: var(--danger);
+}
+
+.delete-plan-button:hover {
+    background: var(--danger);
+    color: white;
+}
+
+.modal-message {
+    min-height: 17px;
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--success);
+    text-align: right;
+}
+
+.modal-message.error {
+    color: var(--danger);
+}
+
+/* =========================================
    Доступность
 ========================================= */
 
@@ -593,16 +966,18 @@ button {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+textarea:focus-visible {
     outline: 3px solid rgba(99, 91, 219, 0.35);
     outline-offset: 3px;
 }
 
 /* =========================================
-   Адаптация для планшетов и телефонов
+   Адаптация для планшетов
 ========================================= */
 
 @media (max-width: 700px) {
+
     .app-container {
         width: min(100% - 30px, 560px);
     }
@@ -647,7 +1022,12 @@ input:focus-visible {
     }
 }
 
+/* =========================================
+   Адаптация для телефонов
+========================================= */
+
 @media (max-width: 480px) {
+
     .app-container {
         width: calc(100% - 28px);
     }
@@ -773,8 +1153,9 @@ input:focus-visible {
     }
 
     .task-item {
-        gap: 10px;
-        padding: 13px 11px;
+        gap: 9px;
+        padding: 13px 10px;
+        flex-wrap: wrap;
     }
 
     .task-text {
@@ -784,6 +1165,12 @@ input:focus-visible {
     .task-status {
         font-size: 9px;
         padding: 4px 6px;
+    }
+
+    .ai-task-button {
+        min-height: 31px;
+        font-size: 10px;
+        padding: 0 8px;
     }
 
     .delete-button {
@@ -797,9 +1184,66 @@ input:focus-visible {
         gap: 7px;
         font-size: 10px;
     }
+
+    .ai-modal {
+        padding: 10px;
+    }
+
+    .ai-modal-content {
+        max-height: calc(100vh - 20px);
+        padding: 19px 15px;
+        border-radius: 17px;
+    }
+
+    .ai-modal-header h2 {
+        font-size: 20px;
+    }
+
+    .prompt-textarea {
+        min-height: 180px;
+    }
+
+    .answer-textarea {
+        min-height: 160px;
+    }
+
+    .ai-actions {
+        flex-direction: column;
+    }
+
+    .ai-actions button {
+        width: 100%;
+    }
+
+    .ai-modal-footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .modal-footer-actions {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .modal-footer-actions button {
+        flex: 1;
+    }
+
+    .delete-plan-button {
+        width: 100%;
+    }
+
+    .modal-message {
+        text-align: left;
+    }
 }
 
+/* =========================================
+   Уважение системных настроек анимации
+========================================= */
+
 @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
