@@ -1,1254 +1,1053 @@
 
+"use strict";
+
 /* =========================================
    AI PERSONAL ASSISTANT
-   Основные настройки
+   Управление задачами и планами ИИ
 ========================================= */
 
-:root {
-    --background: #f5f7fb;
-    --surface: #ffffff;
-    --primary: #635bdb;
-    --primary-dark: #5149c5;
-    --primary-light: #efedff;
-    --text: #20243a;
-    --text-secondary: #85899b;
-    --border: #e9ebf2;
-    --success: #20a779;
-    --success-light: #e6f7f0;
-    --danger: #e45c69;
-    --danger-light: #fff0f1;
-    --shadow: 0 8px 30px rgba(35, 42, 75, 0.045);
-    --radius: 18px;
-}
+// Ключ localStorage оставляем прежним!
+const STORAGE_KEY = "ai_personal_assistant_tasks";
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+// Элементы приложения
+const taskForm = document.getElementById("taskForm");
+const taskInput = document.getElementById("taskInput");
+const taskList = document.getElementById("taskList");
 
-body {
-    min-height: 100vh;
-    background: var(--background);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-                 Roboto, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-}
+const totalCount = document.getElementById("totalCount");
+const completedCount = document.getElementById("completedCount");
+const activeCount = document.getElementById("activeCount");
+const visibleCount = document.getElementById("visibleCount");
 
-body.modal-open {
-    overflow: hidden;
-}
+const filterButtons = document.querySelectorAll(".filter-button");
 
-button,
-input,
-textarea {
-    font: inherit;
-}
+// Элементы модального окна
+const aiModal = document.getElementById("aiModal");
+const closeAiModalButton = document.getElementById("closeAiModal");
+const cancelAiModalButton = document.getElementById("cancelAiModal");
 
-button {
-    cursor: pointer;
-}
+const selectedTaskTitle = document.getElementById("selectedTaskTitle");
+const aiPrompt = document.getElementById("aiPrompt");
+const aiAnswer = document.getElementById("aiAnswer");
+
+const copyPromptButton = document.getElementById("copyPromptButton");
+const openChatGPTButton = document.getElementById("openChatGPTButton");
+const savePlanButton = document.getElementById("savePlanButton");
+const deletePlanButton = document.getElementById("deletePlanButton");
+
+const copyHint = document.getElementById("copyHint");
+const modalMessage = document.getElementById("modalMessage");
+const savedPlanIndicator = document.getElementById("savedPlanIndicator");
+
+// Состояние приложения
+let tasks = loadTasks();
+let currentFilter = "all";
+
+// ID задачи, с которой сейчас работаем
+let currentTaskId = null;
+
 
 /* =========================================
-   Основной контейнер
+   Загрузка задач
 ========================================= */
 
-.app-container {
-    width: min(100% - 48px, 1060px);
-    margin: 0 auto;
+function loadTasks() {
+    try {
+        const savedData = localStorage.getItem(STORAGE_KEY);
+
+        if (!savedData) {
+            return [];
+        }
+
+        const parsedData = JSON.parse(savedData);
+
+        if (!Array.isArray(parsedData)) {
+            return [];
+        }
+
+        return parsedData.filter(task => {
+            return (
+                task &&
+                typeof task.id === "string" &&
+                typeof task.title === "string" &&
+                task.title.trim().length > 0 &&
+                typeof task.completed === "boolean"
+            );
+        }).map(task => {
+
+            // Совместимость со старыми задачами.
+            // Если плана раньше не было, добавляем пустое значение.
+            return {
+                ...task,
+                plan: typeof task.plan === "string"
+                    ? task.plan
+                    : ""
+            };
+
+        });
+
+    } catch (error) {
+        console.error("Ошибка загрузки задач:", error);
+        return [];
+    }
 }
+
 
 /* =========================================
-   Шапка
+   Сохранение задач
 ========================================= */
 
-.header {
-    min-height: 92px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    border-bottom: 1px solid var(--border);
+function saveTasks() {
+    try {
+        localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(tasks)
+        );
+
+        return true;
+
+    } catch (error) {
+        console.error("Ошибка сохранения задач:", error);
+        return false;
+    }
 }
 
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-}
-
-.brand-icon {
-    width: 45px;
-    height: 45px;
-    border-radius: 14px;
-    background: var(--primary);
-    color: white;
-    display: grid;
-    place-items: center;
-}
-
-.brand-icon svg {
-    width: 25px;
-    height: 25px;
-}
-
-.brand h1 {
-    font-size: 17px;
-    font-weight: 750;
-    letter-spacing: -0.5px;
-}
-
-.brand-subtitle {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-top: 4px;
-}
-
-.status-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 30px;
-    padding: 9px 13px;
-}
-
-.status-dot {
-    width: 7px;
-    height: 7px;
-    background: var(--success);
-    border-radius: 50%;
-}
 
 /* =========================================
-   Приветственный блок
+   Создание уникального ID
 ========================================= */
 
-.welcome-section {
-    position: relative;
-    overflow: hidden;
-    margin-top: 35px;
-    padding: 37px 40px;
-    min-height: 195px;
-    border-radius: 22px;
-    background: linear-gradient(115deg, #242744, #4846a0);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+function createTaskId() {
+    if (
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
+    ) {
+        return crypto.randomUUID();
+    }
+
+    return Date.now().toString(36) +
+        Math.random().toString(36).slice(2);
 }
 
-.eyebrow {
-    font-size: 10px;
-    letter-spacing: 2px;
-    color: #c1bfff;
-    font-weight: 700;
-}
-
-.welcome-section h2 {
-    font-size: clamp(24px, 4vw, 33px);
-    letter-spacing: -1.2px;
-    margin-top: 14px;
-}
-
-.welcome-section p {
-    color: #c5c7df;
-    font-size: 14px;
-    margin-top: 10px;
-}
-
-.welcome-decoration {
-    width: 160px;
-    height: 150px;
-    position: relative;
-    flex-shrink: 0;
-    display: grid;
-    place-items: center;
-}
-
-.welcome-decoration > span {
-    position: relative;
-    z-index: 2;
-    font-size: 67px;
-    color: #d6d2ff;
-}
-
-.decoration-circle {
-    position: absolute;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.circle-one {
-    width: 125px;
-    height: 125px;
-}
-
-.circle-two {
-    width: 95px;
-    height: 95px;
-    background: rgba(255, 255, 255, 0.07);
-}
 
 /* =========================================
-   Карточки статистики
+   Добавление задачи
 ========================================= */
 
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 17px;
-    margin-top: 23px;
-}
+taskForm.addEventListener("submit", function(event) {
 
-.stat-card {
-    background: var(--surface);
-    padding: 21px 23px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-}
+    event.preventDefault();
 
-.stat-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+    const title = taskInput.value.trim();
 
-.stat-label {
-    color: var(--text-secondary);
-    font-size: 13px;
-}
+    if (!title) {
+        taskInput.value = "";
+        taskInput.focus();
+        return;
+    }
 
-.stat-icon {
-    width: 32px;
-    height: 32px;
-    display: grid;
-    place-items: center;
-    border-radius: 10px;
-    font-size: 17px;
-    font-weight: 700;
-}
+    const newTask = {
+        id: createTaskId(),
+        title: title,
+        completed: false,
+        plan: ""
+    };
 
-.total-icon {
-    color: var(--primary);
-    background: var(--primary-light);
-}
+    tasks.unshift(newTask);
 
-.completed-icon {
-    color: var(--success);
-    background: var(--success-light);
-}
+    const saved = saveTasks();
 
-.active-icon {
-    color: #d69a37;
-    background: #fff5df;
-}
+    if (!saved) {
+        tasks.shift();
 
-.stat-number {
-    font-size: 30px;
-    font-weight: 750;
-    letter-spacing: -1px;
-    margin-top: 15px;
-}
+        alert(
+            "Не удалось сохранить задачу. " +
+            "Проверьте настройки браузера."
+        );
 
-.stat-description {
-    font-size: 11px;
-    color: var(--text-secondary);
-    margin-top: 5px;
-}
+        return;
+    }
+
+    taskInput.value = "";
+
+    currentFilter = "all";
+
+    updateFilterButtons();
+    renderTasks();
+
+    taskInput.focus();
+
+});
+
 
 /* =========================================
-   Секция задач
+   Изменение статуса задачи
 ========================================= */
 
-.tasks-section {
-    margin-top: 39px;
+function toggleTask(taskId) {
+
+    const task = tasks.find(item => item.id === taskId);
+
+    if (!task) {
+        return;
+    }
+
+    task.completed = !task.completed;
+
+    if (!saveTasks()) {
+
+        task.completed = !task.completed;
+
+        alert("Не удалось сохранить изменения.");
+    }
+
+    renderTasks();
 }
 
-.section-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 21px;
-}
-
-.section-heading h2 {
-    font-size: 21px;
-    letter-spacing: -0.5px;
-}
-
-.section-heading p {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-top: 6px;
-}
 
 /* =========================================
-   Форма добавления
+   Удаление задачи
 ========================================= */
 
-.task-form {
-    display: flex;
-    gap: 11px;
-    padding: 15px;
-    border: 1px solid var(--border);
-    background: white;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
+function deleteTask(taskId) {
+
+    const taskIndex = tasks.findIndex(
+        item => item.id === taskId
+    );
+
+    if (taskIndex === -1) {
+        return;
+    }
+
+    const deletedTask = tasks.splice(taskIndex, 1)[0];
+
+    if (!saveTasks()) {
+
+        tasks.splice(taskIndex, 0, deletedTask);
+
+        alert("Не удалось сохранить изменения.");
+    }
+
+    // Если удаляем текущую задачу, закрываем окно.
+    if (currentTaskId === taskId) {
+        closeAiModal();
+    }
+
+    renderTasks();
 }
 
-.input-wrapper {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 13px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: #fafbfe;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.input-wrapper:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 91, 219, 0.09);
-}
-
-.input-plus {
-    color: var(--primary);
-    font-size: 24px;
-    font-weight: 300;
-}
-
-.input-wrapper input {
-    width: 100%;
-    min-width: 0;
-    height: 45px;
-    border: none;
-    outline: none;
-    background: transparent;
-    color: var(--text);
-    font-size: 13px;
-}
-
-.input-wrapper input::placeholder {
-    color: #a6a9b7;
-}
-
-.add-button {
-    min-height: 45px;
-    padding: 0 19px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    border: none;
-    border-radius: 11px;
-    background: var(--primary);
-    color: white;
-    font-size: 13px;
-    font-weight: 600;
-    transition: background 0.2s, transform 0.2s;
-}
-
-.add-button:hover {
-    background: var(--primary-dark);
-    transform: translateY(-1px);
-}
-
-.add-button:active {
-    transform: scale(0.98);
-}
-
-.button-plus {
-    font-size: 18px;
-}
 
 /* =========================================
-   Фильтры
+   Фильтрация задач
 ========================================= */
 
-.filter-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 26px;
-    margin-bottom: 15px;
+function getFilteredTasks() {
+
+    switch (currentFilter) {
+
+        case "active":
+            return tasks.filter(task => !task.completed);
+
+        case "completed":
+            return tasks.filter(task => task.completed);
+
+        default:
+            return tasks;
+    }
 }
 
-.filter-group {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    background: #eaeaf2;
-    padding: 4px;
-    border-radius: 11px;
-}
-
-.filter-button {
-    padding: 8px 13px;
-    border: none;
-    border-radius: 8px;
-    color: #777b90;
-    background: transparent;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-
-.filter-button:hover {
-    color: var(--text);
-}
-
-.filter-button.active {
-    color: var(--primary);
-    background: white;
-    font-weight: 650;
-    box-shadow: 0 2px 6px rgba(35, 42, 75, 0.07);
-}
-
-.task-counter {
-    font-size: 11px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-}
 
 /* =========================================
-   Список задач
+   Смена фильтра
 ========================================= */
 
-.task-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+filterButtons.forEach(button => {
+
+    button.addEventListener("click", function() {
+
+        currentFilter = button.dataset.filter;
+
+        updateFilterButtons();
+        renderTasks();
+
+    });
+
+});
+
+
+function updateFilterButtons() {
+
+    filterButtons.forEach(button => {
+
+        const isActive =
+            button.dataset.filter === currentFilter;
+
+        button.classList.toggle("active", isActive);
+
+        button.setAttribute(
+            "aria-pressed",
+            String(isActive)
+        );
+
+    });
+
 }
 
-.task-item {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    padding: 16px 17px;
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    animation: appear 0.2s ease;
-    transition: border-color 0.2s;
-}
-
-.task-item:hover {
-    border-color: #d6d2fa;
-}
-
-@keyframes appear {
-    from {
-        opacity: 0;
-        transform: translateY(5px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.task-checkbox {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 21px;
-    height: 21px;
-    flex-shrink: 0;
-    border: 1.7px solid #d4d6e1;
-    border-radius: 7px;
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    transition: all 0.2s;
-}
-
-.task-checkbox:hover {
-    border-color: var(--primary);
-}
-
-.task-checkbox:checked {
-    background: var(--success);
-    border-color: var(--success);
-}
-
-.task-checkbox:checked::after {
-    content: "✓";
-    color: white;
-    font-size: 13px;
-    font-weight: 700;
-}
-
-.task-text {
-    flex: 1;
-    min-width: 0;
-    font-size: 13px;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
-    transition: color 0.2s;
-}
-
-.task-item.completed .task-text {
-    color: #a2a5b2;
-    text-decoration: line-through;
-}
-
-.task-status {
-    color: var(--success);
-    background: var(--success-light);
-    border-radius: 6px;
-    padding: 5px 8px;
-    font-size: 10px;
-    white-space: nowrap;
-}
-
-.delete-button {
-    width: 34px;
-    height: 34px;
-    flex-shrink: 0;
-    display: grid;
-    place-items: center;
-    border: none;
-    border-radius: 9px;
-    background: transparent;
-    color: #a5a8b5;
-    font-size: 19px;
-    transition: all 0.2s;
-}
-
-.delete-button:hover {
-    color: var(--danger);
-    background: var(--danger-light);
-}
 
 /* =========================================
-   Кнопка разбора задачи
+   Статистика
 ========================================= */
 
-.ai-task-button {
-    min-height: 34px;
-    padding: 0 11px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    border: 1px solid #e0ddff;
-    border-radius: 9px;
-    background: var(--primary-light);
-    color: var(--primary);
-    font-size: 11px;
-    font-weight: 650;
-    transition: all 0.2s;
+function updateStatistics() {
+
+    const total = tasks.length;
+
+    const completed = tasks.filter(
+        task => task.completed
+    ).length;
+
+    const active = total - completed;
+
+    totalCount.textContent = total;
+    completedCount.textContent = completed;
+    activeCount.textContent = active;
+
+    const visible = getFilteredTasks().length;
+
+    visibleCount.textContent =
+        visible + " " + getTaskWord(visible);
+
 }
 
-.ai-task-button:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-    transform: translateY(-1px);
-}
-
-.ai-task-button.has-plan {
-    background: var(--success-light);
-    border-color: #c9eedf;
-    color: var(--success);
-}
-
-.ai-task-button.has-plan:hover {
-    background: var(--success);
-    border-color: var(--success);
-    color: white;
-}
 
 /* =========================================
-   Пустой список
+   Склонение слова "задача"
 ========================================= */
 
-.empty-state {
-    padding: 42px 20px;
-    background: white;
-    border: 1px dashed #dfe1eb;
-    border-radius: 16px;
-    text-align: center;
+function getTaskWord(number) {
+
+    const lastTwoDigits = number % 100;
+    const lastDigit = number % 10;
+
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+        return "задач";
+    }
+
+    if (lastDigit === 1) {
+        return "задача";
+    }
+
+    if (lastDigit >= 2 && lastDigit <= 4) {
+        return "задачи";
+    }
+
+    return "задач";
 }
 
-.empty-icon {
-    width: 55px;
-    height: 55px;
-    display: grid;
-    place-items: center;
-    margin: 0 auto 15px;
-    border-radius: 17px;
-    background: var(--primary-light);
-    color: var(--primary);
-    font-size: 25px;
-}
-
-.empty-state h3 {
-    font-size: 15px;
-    margin-bottom: 7px;
-}
-
-.empty-state p {
-    font-size: 12px;
-    line-height: 1.6;
-    color: var(--text-secondary);
-}
 
 /* =========================================
-   Подвал
+   Отрисовка списка задач
 ========================================= */
 
-.footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 15px;
-    padding: 28px 0;
-    margin-top: 30px;
-    border-top: 1px solid var(--border);
-    color: var(--text-secondary);
-    font-size: 11px;
+function renderTasks() {
+
+    taskList.replaceChildren();
+
+    const filteredTasks = getFilteredTasks();
+
+    if (filteredTasks.length === 0) {
+
+        renderEmptyState();
+        updateStatistics();
+
+        return;
+    }
+
+    filteredTasks.forEach(task => {
+
+        const taskElement = createTaskElement(task);
+
+        taskList.appendChild(taskElement);
+
+    });
+
+    updateStatistics();
 }
+
 
 /* =========================================
-   МОДАЛЬНОЕ ОКНО ИИ
+   Создание элемента задачи
 ========================================= */
 
-.ai-modal[hidden] {
-    display: none !important;
-}
+function createTaskElement(task) {
 
-.ai-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
+    const article = document.createElement("article");
 
-.ai-modal-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(25, 27, 49, 0.62);
-    backdrop-filter: blur(5px);
-    animation: fadeIn 0.2s ease;
-}
+    article.className = "task-item";
 
-.ai-modal-content {
-    position: relative;
-    z-index: 1;
-    width: min(100%, 690px);
-    max-height: calc(100vh - 40px);
-    overflow-y: auto;
-    padding: 27px;
-    background: white;
-    border: 1px solid rgba(255,255,255,0.5);
-    border-radius: 21px;
-    box-shadow: 0 20px 70px rgba(20, 24, 55, 0.22);
-    animation: modalAppear 0.22s ease;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes modalAppear {
-    from {
-        opacity: 0;
-        transform: translateY(12px) scale(0.98);
+    if (task.completed) {
+        article.classList.add("completed");
     }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
+
+    // Чекбокс
+    const checkbox = document.createElement("input");
+
+    checkbox.type = "checkbox";
+    checkbox.className = "task-checkbox";
+    checkbox.checked = task.completed;
+
+    checkbox.dataset.action = "toggle";
+    checkbox.dataset.taskId = task.id;
+
+    checkbox.setAttribute(
+        "aria-label",
+        "Отметить задачу как выполненную"
+    );
+
+    // Название
+    const title = document.createElement("span");
+
+    title.className = "task-text";
+    title.textContent = task.title;
+
+    // Статус
+    const status = document.createElement("span");
+
+    status.className = "task-status";
+
+    status.textContent = task.completed
+        ? "Готово"
+        : "В работе";
+
+    // Кнопка разбора с ИИ
+    // Для выполненной задачи показываем её,
+    // только если у неё уже существует план.
+
+    if (!task.completed || task.plan) {
+
+        const aiButton = document.createElement("button");
+
+        aiButton.type = "button";
+        aiButton.className = "ai-task-button";
+
+        aiButton.dataset.action = "open-ai";
+        aiButton.dataset.taskId = task.id;
+
+        if (task.plan) {
+
+            aiButton.classList.add("has-plan");
+
+            aiButton.textContent = "✓ Посмотреть план";
+
+        } else {
+
+            aiButton.textContent = "✦ Разобрать с ИИ";
+
+        }
+
+        aiButton.setAttribute(
+            "aria-label",
+            task.plan
+                ? "Открыть план задачи"
+                : "Разобрать задачу с помощью ИИ"
+        );
+
+        article.appendChild(checkbox);
+        article.appendChild(title);
+        article.appendChild(status);
+        article.appendChild(aiButton);
+
+    } else {
+
+        article.append(
+            checkbox,
+            title,
+            status
+        );
+
     }
+
+    // Кнопка удаления
+    const deleteButton = document.createElement("button");
+
+    deleteButton.type = "button";
+    deleteButton.className = "delete-button";
+    deleteButton.textContent = "×";
+
+    deleteButton.dataset.action = "delete";
+    deleteButton.dataset.taskId = task.id;
+
+    deleteButton.setAttribute(
+        "aria-label",
+        "Удалить задачу: " + task.title
+    );
+
+    deleteButton.title = "Удалить задачу";
+
+    article.appendChild(deleteButton);
+
+    return article;
 }
 
-.ai-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 15px;
-    margin-bottom: 22px;
-}
-
-.ai-eyebrow {
-    display: block;
-    margin-bottom: 8px;
-    color: var(--primary);
-    font-size: 10px;
-    font-weight: 750;
-    letter-spacing: 1.8px;
-}
-
-.ai-modal-header h2 {
-    font-size: 23px;
-    letter-spacing: -0.6px;
-}
-
-.ai-modal-header p {
-    margin-top: 7px;
-    color: var(--text-secondary);
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.modal-close {
-    width: 35px;
-    height: 35px;
-    flex-shrink: 0;
-    border: none;
-    border-radius: 10px;
-    background: #f1f2f7;
-    color: #74788a;
-    font-size: 23px;
-    transition: all 0.2s;
-}
-
-.modal-close:hover {
-    background: var(--danger-light);
-    color: var(--danger);
-}
-
-.selected-task-box {
-    padding: 15px 17px;
-    background: var(--primary-light);
-    border: 1px solid #e4e0ff;
-    border-radius: 12px;
-    margin-bottom: 23px;
-}
-
-.selected-task-label {
-    color: var(--primary);
-    font-size: 9px;
-    font-weight: 750;
-    letter-spacing: 1.4px;
-}
-
-.selected-task-box p {
-    margin-top: 7px;
-    color: var(--text);
-    font-size: 14px;
-    font-weight: 650;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
-}
-
-.ai-block {
-    min-width: 0;
-}
-
-.ai-block-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.ai-block-heading h3 {
-    font-size: 15px;
-}
-
-.ai-step {
-    padding: 5px 8px;
-    border-radius: 6px;
-    background: #f0efff;
-    color: var(--primary);
-    font-size: 9px;
-    font-weight: 750;
-    letter-spacing: 0.7px;
-}
-
-.ai-help-text {
-    margin: 8px 0 12px;
-    color: var(--text-secondary);
-    font-size: 11px;
-    line-height: 1.6;
-}
-
-.ai-textarea {
-    display: block;
-    width: 100%;
-    resize: vertical;
-    padding: 14px;
-    border: 1px solid var(--border);
-    border-radius: 11px;
-    outline: none;
-    background: #fafbfe;
-    color: var(--text);
-    font-size: 12px;
-    line-height: 1.7;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.ai-textarea:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 91, 219, 0.09);
-}
-
-.ai-textarea::placeholder {
-    color: #a6a9b7;
-}
-
-.prompt-textarea {
-    min-height: 165px;
-}
-
-.answer-textarea {
-    min-height: 180px;
-}
-
-.ai-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 9px;
-    margin-top: 12px;
-}
-
-.primary-button,
-.secondary-button,
-.save-plan-button,
-.cancel-button,
-.delete-plan-button {
-    min-height: 42px;
-    padding: 0 15px;
-    border-radius: 10px;
-    font-size: 11px;
-    font-weight: 650;
-    transition: all 0.2s;
-}
-
-.primary-button {
-    border: 1px solid var(--primary);
-    background: var(--primary);
-    color: white;
-}
-
-.primary-button:hover {
-    background: var(--primary-dark);
-}
-
-.secondary-button {
-    border: 1px solid var(--border);
-    background: white;
-    color: var(--text);
-}
-
-.secondary-button:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: var(--primary-light);
-}
-
-.copy-hint {
-    min-height: 16px;
-    margin-top: 8px;
-    color: var(--success);
-    font-size: 11px;
-}
-
-.ai-divider {
-    height: 1px;
-    margin: 17px 0 21px;
-    background: var(--border);
-}
-
-.answer-hint {
-    margin-top: 8px;
-    color: var(--text-secondary);
-    font-size: 10px;
-}
-
-.saved-plan-indicator {
-    margin-top: 11px;
-    padding: 10px 12px;
-    border-radius: 9px;
-    background: var(--success-light);
-    color: var(--success);
-    font-size: 11px;
-    line-height: 1.5;
-}
-
-.saved-plan-indicator span {
-    margin-right: 5px;
-    font-weight: 800;
-}
-
-.ai-modal-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 21px;
-    padding-top: 18px;
-    border-top: 1px solid var(--border);
-}
-
-.modal-footer-actions {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    margin-left: auto;
-}
-
-.cancel-button {
-    border: 1px solid var(--border);
-    background: white;
-    color: var(--text-secondary);
-}
-
-.cancel-button:hover {
-    background: #f4f5f9;
-}
-
-.save-plan-button {
-    border: 1px solid var(--primary);
-    background: var(--primary);
-    color: white;
-}
-
-.save-plan-button:hover {
-    background: var(--primary-dark);
-}
-
-.delete-plan-button {
-    border: 1px solid #ffdce0;
-    background: var(--danger-light);
-    color: var(--danger);
-}
-
-.delete-plan-button:hover {
-    background: var(--danger);
-    color: white;
-}
-
-.modal-message {
-    min-height: 17px;
-    margin-top: 10px;
-    font-size: 11px;
-    color: var(--success);
-    text-align: right;
-}
-
-.modal-message.error {
-    color: var(--danger);
-}
 
 /* =========================================
-   Доступность
+   Обработка действий в списке задач
 ========================================= */
 
-.visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-}
+// Используем делегирование событий.
+// Обработчик создаётся только один раз.
 
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible {
-    outline: 3px solid rgba(99, 91, 219, 0.35);
-    outline-offset: 3px;
-}
+taskList.addEventListener("click", function(event) {
+
+    const button = event.target.closest("button");
+
+    if (!button || !taskList.contains(button)) {
+        return;
+    }
+
+    const action = button.dataset.action;
+    const taskId = button.dataset.taskId;
+
+    if (action === "open-ai") {
+        openAiModal(taskId);
+    }
+
+    if (action === "delete") {
+        deleteTask(taskId);
+    }
+
+});
+
+
+taskList.addEventListener("change", function(event) {
+
+    const checkbox = event.target;
+
+    if (
+        checkbox.matches(
+            'input[data-action="toggle"]'
+        )
+    ) {
+        toggleTask(checkbox.dataset.taskId);
+    }
+
+});
+
 
 /* =========================================
-   Адаптация для планшетов
+   Генерация промпта для ChatGPT
 ========================================= */
 
-@media (max-width: 700px) {
+function generatePrompt(taskTitle) {
 
-    .app-container {
-        width: min(100% - 30px, 560px);
-    }
+    return `Ты мой помощник по планированию и организации задач.
 
-    .welcome-section {
-        padding: 29px 25px;
-        min-height: 175px;
-    }
+Моя задача: "${taskTitle}"
 
-    .welcome-decoration {
-        width: 110px;
-    }
+Помоги мне превратить эту задачу в понятный, реалистичный и последовательный план действий.
 
-    .welcome-decoration > span {
-        font-size: 52px;
-    }
+ТВОЯ ЦЕЛЬ:
 
-    .circle-one {
-        width: 95px;
-        height: 95px;
-    }
+Разбить мою задачу на небольшие шаги, которые я смогу выполнять постепенно.
 
-    .circle-two {
-        width: 72px;
-        height: 72px;
-    }
+ПРАВИЛА РАБОТЫ:
 
-    .stats-grid {
-        gap: 10px;
-    }
+1. Сначала проанализируй мою задачу и определи, достаточно ли информации для составления качественного плана.
 
-    .stat-card {
-        padding: 16px 13px;
-    }
+2. Не придумывай факты, обстоятельства, требования и детали, о которых я не сообщал.
 
-    .stat-number {
-        font-size: 26px;
-    }
+3. Если для составления плана не хватает важной информации, сначала задай мне несколько конкретных уточняющих вопросов.
 
-    .stat-label {
-        font-size: 11px;
-    }
+4. Если информации достаточно, сразу приступай к составлению плана.
+
+5. Разбей задачу на небольшие последовательные действия.
+
+6. Для каждого шага укажи:
+   - Название действия.
+   - Подробное, но понятное описание.
+   - Какой результат должен получиться после выполнения.
+   - Примерную продолжительность, если её можно обоснованно оценить.
+
+7. Расположи шаги в логической последовательности.
+
+8. Сделай план реалистичным. Не перегружай его большим количеством действий за один день.
+
+9. Если задача большая, раздели её на несколько этапов.
+
+10. Добавь короткий итоговый список действий, с которого я могу начать прямо сейчас.
+
+ФОРМАТ ОТВЕТА:
+
+# План выполнения задачи
+
+## Цель
+Кратко объясни, к какому результату нужно прийти.
+
+## Этапы выполнения
+Для каждого этапа укажи последовательные шаги и их описание.
+
+## Что понадобится
+Перечисли необходимые материалы, знания или инструменты, если они известны.
+
+## Первый шаг
+Объясни, что мне лучше сделать в первую очередь.
+
+## Проверка результата
+Объясни, как понять, что задача действительно выполнена.
+
+ВАЖНО:
+
+Пиши понятно, структурированно и без лишней воды.
+
+Не усложняй простые задачи.
+
+Учитывай, что я могу быть новичком в этой теме.
+
+Если задача связана с учёбой, объясняй действия так, чтобы я действительно разобрался в материале, а не просто получил готовый результат.
+
+Не выдавай предположения за факты.
+
+Начни с уточняющих вопросов, если они действительно необходимы.`;
+
 }
+
 
 /* =========================================
-   Адаптация для телефонов
+   Открытие окна ИИ
 ========================================= */
 
-@media (max-width: 480px) {
+function openAiModal(taskId) {
 
-    .app-container {
-        width: calc(100% - 28px);
+    const task = tasks.find(item => item.id === taskId);
+
+    if (!task) {
+        return;
     }
 
-    .header {
-        min-height: 77px;
-    }
+    currentTaskId = taskId;
 
-    .brand {
-        gap: 9px;
-    }
+    // Название задачи
+    selectedTaskTitle.textContent = task.title;
 
-    .brand-icon {
-        width: 39px;
-        height: 39px;
-    }
+    // Создаём запрос
+    aiPrompt.value = generatePrompt(task.title);
 
-    .brand h1 {
-        font-size: 14px;
-    }
+    // Загружаем существующий план
+    aiAnswer.value = task.plan || "";
 
-    .brand-subtitle {
-        font-size: 10px;
-    }
+    // Отображаем состояние сохранённого плана
+    const hasPlan = Boolean(task.plan);
 
-    .status-indicator {
-        font-size: 0;
-        padding: 10px;
-    }
+    savedPlanIndicator.hidden = !hasPlan;
+    deletePlanButton.hidden = !hasPlan;
 
-    .welcome-section {
-        margin-top: 22px;
-        padding: 25px 19px;
-        min-height: 155px;
-    }
+    // Очищаем сообщения
+    copyHint.textContent = "";
+    modalMessage.textContent = "";
 
-    .welcome-section h2 {
-        font-size: 23px;
-    }
+    modalMessage.classList.remove("error");
 
-    .welcome-section p {
-        max-width: 230px;
-        font-size: 12px;
-        line-height: 1.5;
-    }
+    // Открываем окно
+    aiModal.hidden = false;
+    aiModal.setAttribute("aria-hidden", "false");
 
-    .welcome-decoration {
-        position: absolute;
-        right: -25px;
-        opacity: 0.45;
-    }
+    document.body.classList.add("modal-open");
 
-    .eyebrow {
-        font-size: 8px;
-    }
+    closeAiModalButton.focus();
 
-    .stats-grid {
-        gap: 8px;
-        margin-top: 15px;
-    }
-
-    .stat-card {
-        padding: 13px 10px;
-        border-radius: 13px;
-    }
-
-    .stat-label {
-        font-size: 10px;
-    }
-
-    .stat-icon {
-        width: 25px;
-        height: 25px;
-        font-size: 13px;
-    }
-
-    .stat-number {
-        font-size: 23px;
-        margin-top: 11px;
-    }
-
-    .stat-description {
-        font-size: 9px;
-    }
-
-    .tasks-section {
-        margin-top: 30px;
-    }
-
-    .section-heading h2 {
-        font-size: 19px;
-    }
-
-    .section-heading p {
-        font-size: 11px;
-    }
-
-    .task-form {
-        flex-direction: column;
-        padding: 11px;
-        gap: 9px;
-    }
-
-    .add-button {
-        width: 100%;
-    }
-
-    .filter-row {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .filter-group {
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .filter-button {
-        flex: 1;
-        padding: 9px 5px;
-        font-size: 11px;
-    }
-
-    .task-item {
-        gap: 9px;
-        padding: 13px 10px;
-        flex-wrap: wrap;
-    }
-
-    .task-text {
-        font-size: 12px;
-    }
-
-    .task-status {
-        font-size: 9px;
-        padding: 4px 6px;
-    }
-
-    .ai-task-button {
-        min-height: 31px;
-        font-size: 10px;
-        padding: 0 8px;
-    }
-
-    .delete-button {
-        width: 29px;
-        height: 29px;
-    }
-
-    .footer {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 7px;
-        font-size: 10px;
-    }
-
-    .ai-modal {
-        padding: 10px;
-    }
-
-    .ai-modal-content {
-        max-height: calc(100vh - 20px);
-        padding: 19px 15px;
-        border-radius: 17px;
-    }
-
-    .ai-modal-header h2 {
-        font-size: 20px;
-    }
-
-    .prompt-textarea {
-        min-height: 180px;
-    }
-
-    .answer-textarea {
-        min-height: 160px;
-    }
-
-    .ai-actions {
-        flex-direction: column;
-    }
-
-    .ai-actions button {
-        width: 100%;
-    }
-
-    .ai-modal-footer {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .modal-footer-actions {
-        width: 100%;
-        margin-left: 0;
-    }
-
-    .modal-footer-actions button {
-        flex: 1;
-    }
-
-    .delete-plan-button {
-        width: 100%;
-    }
-
-    .modal-message {
-        text-align: left;
-    }
 }
+
 
 /* =========================================
-   Уважение системных настроек анимации
+   Закрытие окна ИИ
 ========================================= */
 
-@media (prefers-reduced-motion: reduce) {
+function closeAiModal() {
 
-    *,
-    *::before,
-    *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
+    aiModal.hidden = true;
+
+    aiModal.setAttribute("aria-hidden", "true");
+
+    document.body.classList.remove("modal-open");
+
+    currentTaskId = null;
+
+    // Возвращаем фокус в приложение
+    taskInput.focus();
+
 }
+
+
+closeAiModalButton.addEventListener(
+    "click",
+    closeAiModal
+);
+
+
+cancelAiModalButton.addEventListener(
+    "click",
+    closeAiModal
+);
+
+
+// Закрытие при нажатии на затемнённую область
+aiModal.addEventListener("click", function(event) {
+
+    if (event.target.hasAttribute("data-close-modal")) {
+        closeAiModal();
+    }
+
+});
+
+
+// Закрытие клавишей Escape
+document.addEventListener("keydown", function(event) {
+
+    if (
+        event.key === "Escape" &&
+        !aiModal.hidden
+    ) {
+        closeAiModal();
+    }
+
+});
+
+
+/* =========================================
+   Копирование промпта
+========================================= */
+
+async function copyPrompt() {
+
+    const promptText = aiPrompt.value;
+
+    if (!promptText.trim()) {
+
+        showModalMessage(
+            "Запрос пуст. Нечего копировать.",
+            true
+        );
+
+        return;
+    }
+
+    try {
+
+        // Современный способ копирования
+        if (
+            navigator.clipboard &&
+            window.isSecureContext
+        ) {
+
+            await navigator.clipboard.writeText(promptText);
+
+        } else {
+
+            // Резервный способ для локального режима
+            const temporaryTextarea =
+                document.createElement("textarea");
+
+            temporaryTextarea.value = promptText;
+
+            temporaryTextarea.style.position = "fixed";
+            temporaryTextarea.style.opacity = "0";
+            temporaryTextarea.style.pointerEvents = "none";
+
+            document.body.appendChild(temporaryTextarea);
+
+            temporaryTextarea.focus();
+            temporaryTextarea.select();
+
+            const copied = document.execCommand("copy");
+
+            temporaryTextarea.remove();
+
+            if (!copied) {
+                throw new Error("Копирование не выполнено");
+            }
+
+        }
+
+        copyHint.textContent = "✓ Запрос успешно скопирован!";
+        copyHint.style.color = "var(--success)";
+
+    } catch (error) {
+
+        console.error("Ошибка копирования:", error);
+
+        copyHint.textContent =
+            "Не удалось скопировать. Выдели запрос и скопируй его вручную.";
+
+        copyHint.style.color = "var(--danger)";
+
+    }
+
+}
+
+
+copyPromptButton.addEventListener(
+    "click",
+    copyPrompt
+);
+
+
+/* =========================================
+   Открытие ChatGPT
+========================================= */
+
+openChatGPTButton.addEventListener("click", function() {
+
+    // Открываем ChatGPT в новой вкладке.
+    // Сначала желательно скопировать запрос.
+
+    window.open(
+        "https://chatgpt.com/",
+        "_blank",
+        "noopener,noreferrer"
+    );
+
+});
+
+
+/* =========================================
+   Сохранение плана
+========================================= */
+
+function savePlan() {
+
+    if (!currentTaskId) {
+        return;
+    }
+
+    const task = tasks.find(
+        item => item.id === currentTaskId
+    );
+
+    if (!task) {
+
+        showModalMessage(
+            "Задача не найдена.",
+            true
+        );
+
+        return;
+    }
+
+    const answer = aiAnswer.value.trim();
+
+    // Проверка пустого ответа
+    if (!answer) {
+
+        showModalMessage(
+            "Сначала вставь ответ ChatGPT.",
+            true
+        );
+
+        aiAnswer.focus();
+
+        return;
+    }
+
+    // Сохраняем старое значение на случай ошибки
+    const previousPlan = task.plan || "";
+
+    // Записываем новый план
+    task.plan = answer;
+
+    if (!saveTasks()) {
+
+        // Возвращаем предыдущие данные
+        task.plan = previousPlan;
+
+        showModalMessage(
+            "Не удалось сохранить план. Проверь доступ к localStorage.",
+            true
+        );
+
+        return;
+    }
+
+    // Обновляем интерфейс
+    savedPlanIndicator.hidden = false;
+    deletePlanButton.hidden = false;
+
+    renderTasks();
+
+    showModalMessage(
+        "✓ План успешно сохранён!",
+        false
+    );
+
+}
+
+
+/* =========================================
+   Обработчик сохранения
+========================================= */
+
+savePlanButton.addEventListener(
+    "click",
+    savePlan
+);
+
+
+/* =========================================
+   Удаление сохранённого плана
+========================================= */
+
+function deletePlan() {
+
+    if (!currentTaskId) {
+        return;
+    }
+
+    const task = tasks.find(
+        item => item.id === currentTaskId
+    );
+
+    if (!task || !task.plan) {
+        return;
+    }
+
+    const confirmed = confirm(
+        "Ты действительно хочешь удалить сохранённый план?"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    const previousPlan = task.plan;
+
+    task.plan = "";
+
+    if (!saveTasks()) {
+
+        // Восстанавливаем план при ошибке
+        task.plan = previousPlan;
+
+        showModalMessage(
+            "Не удалось удалить план.",
+            true
+        );
+
+        return;
+    }
+
+    // Очищаем поле
+    aiAnswer.value = "";
+
+    savedPlanIndicator.hidden = true;
+    deletePlanButton.hidden = true;
+
+    renderTasks();
+
+    showModalMessage(
+        "План удалён.",
+        false
+    );
+
+}
+
+
+deletePlanButton.addEventListener(
+    "click",
+    deletePlan
+);
+
+
+/* =========================================
+   Сообщения модального окна
+========================================= */
+
+function showModalMessage(message, isError) {
+
+    modalMessage.textContent = message;
+
+    modalMessage.classList.toggle(
+        "error",
+        isError
+    );
+
+}
+
+
+/* =========================================
+   Сообщение при пустом списке
+========================================= */
+
+function renderEmptyState() {
+
+    const emptyState = document.createElement("div");
+
+    emptyState.className = "empty-state";
+
+    const icon = document.createElement("div");
+
+    icon.className = "empty-icon";
+    icon.textContent = "✦";
+
+    const title = document.createElement("h3");
+
+    const description = document.createElement("p");
+
+    if (tasks.length === 0) {
+
+        title.textContent = "Пока нет задач";
+
+        description.textContent =
+            "Добавь своё первое дело, чтобы начать продуктивный день.";
+
+    } else if (currentFilter === "active") {
+
+        title.textContent = "Активных задач нет";
+
+        description.textContent =
+            "Отлично! Все задачи выполнены.";
+
+    } else if (currentFilter === "completed") {
+
+        title.textContent = "Выполненных задач пока нет";
+
+        description.textContent =
+            "Завершённые задачи появятся здесь.";
+
+    } else {
+
+        title.textContent = "Задач нет";
+
+        description.textContent =
+            "Добавь новую задачу, чтобы продолжить.";
+
+    }
+
+    emptyState.append(
+        icon,
+        title,
+        description
+    );
+
+    taskList.appendChild(emptyState);
+
+}
+
+
+/* =========================================
+   Инициализация приложения
+========================================= */
+
+function initApp() {
+
+    updateFilterButtons();
+
+    renderTasks();
+
+    console.log(
+        "AI Personal Assistant успешно запущен."
+    );
+
+}
+
+
+// Запускаем приложение
+initApp();
